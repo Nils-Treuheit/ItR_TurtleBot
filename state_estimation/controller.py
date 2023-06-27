@@ -1,15 +1,15 @@
 import rclpy
 import numpy as np
 from rclpy.node import Node
-
+from copy import deepcopy
 from geometry_msgs.msg import Twist, PoseStamped, PointStamped
 from sensor_msgs.msg import LaserScan
 import math 
 
 # LIM in accordance to https://emanual.robotis.com/docs/en/platform/turtlebot3/features/
 ROT_LIM = 1.42 #50% of max speed
-VEL_LIM = 0.45 #75% of max speed
-DIST2FUT = 0.3 #tripple VEL_LIM
+VEL_LIM = 0.15 #75% of max speed
+DIST2FUT = 0.45 #tripple VEL_LIM
 
 
 class VelocityController(Node):
@@ -26,7 +26,7 @@ class VelocityController(Node):
         self.back_up = False
         self.goal = None
         self.position = None
-        self.prev_position = np.zeros(2)
+        self.prev_position = None
         self.create_subscription(LaserScan, 'scan', self.laser_cb, rclpy.qos.qos_profile_sensor_data)
         self.create_subscription(PoseStamped, 'nav/goal', self.goal_cb, 10)
         self.create_subscription(PointStamped, 'position', self.position_cb, 10)
@@ -40,7 +40,7 @@ class VelocityController(Node):
         dis_front = self.forward_distance - 0.3
         dis_back = self.backward_distance - 0.3
 
-        if self.goal != None:
+        if self.goal is not None and self.position is not None and self.prev_position is not None:
             goal_pos = np.array([self.goal[0],self.goal[1]])
             current_pos = np.array([(self.position[0]+self.prev_position[0])*0.5,(self.position[1]+self.prev_position[1])*0.5])
             future_pos = np.array([current_pos[0] + DIST2FUT * math.cos(self.current_rot),
@@ -67,10 +67,10 @@ class VelocityController(Node):
             x = dis_back
             self.back_up = False
             rot = 0
-        elif self.goal_rot != None and self.goal_rot!=self.current_rot:
+        elif self.goal_rot is not None and self.goal_rot!=self.current_rot:
             rot = self.goal_rot - self.current_rot 
             x = 0.0
-        elif self.goal_rot != None and self.goal_rot==self.current_rot:
+        elif self.goal_rot is not None and self.goal_rot==self.current_rot:
             self.goal_rot = None
             
         x = min(max(x,-VEL_LIM),VEL_LIM)
@@ -95,7 +95,7 @@ class VelocityController(Node):
 
         
     def position_cb(self, msg):
-        if self.position != None: self.prev_position = self.position
+        if self.position is not None: self.prev_position = deepcopy(self.position)
         self.position = msg.point.x, msg.point.y
 
 
