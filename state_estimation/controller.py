@@ -21,9 +21,10 @@ class VelocityController(Node):
         self.left_distance = 0
         self.right_distance = 0
         self.backward_distance = 0
-        self.current_rot = 0
-        self.goal_rot = None
-        self.back_up = False
+        self.turning_rounds = 0
+        self.rot = 0.0
+        self.turns = 0
+        self.prev_goal = None
         self.goal = None
         self.position = None
         self.prev_position = None
@@ -35,51 +36,60 @@ class VelocityController(Node):
         
     def timer_cb(self):
         msg = Twist()
-        x = None
-        rot = 0
-        dis_front = self.forward_distance - 0.3
-        dis_back = self.backward_distance - 0.3
 
-        if self.goal is not None and self.position is not None and self.prev_position is not None:
-            goal_pos = np.array([self.goal[0],self.goal[1]])
-            current_pos = np.array([(self.position[0]+self.prev_position[0])*0.5,(self.position[1]+self.prev_position[1])*0.5])
-            future_pos = np.array([current_pos[0] + DIST2FUT * math.cos(self.current_rot),
-                                   current_pos[1] + DIST2FUT * math.sin(self.current_rot)])
+        if self.goal is None or self.position is None:
+            return
+        
+        if self.prev_goal is None and self.goal is not None:
+            self.prev_goal = self.goal
 
-            future_angle = math.atan2(future_pos[1]-current_pos[1],future_pos[0]-current_pos[0])
-            goal_angle = math.atan2(goal_pos[1]-current_pos[1],goal_pos[0]-current_pos[0])
+        x_diffrence = self.goal[0] - self.position[0]
+        y_diffrence = self.goal[1] - self.position[1]
 
-            rot = max(min((goal_angle - future_angle), ROT_LIM), -ROT_LIM)
-            x = np.sqrt(np.sum((future_pos-current_pos)**2))
+        x = 0.0
+        z = 0.0
 
-        if x == None: x = dis_front
-        x = min(x,dis_front) if x > 0 else max(x,dis_back)
-        if x == 0.0: 
-            if self.right_distance > 0.15:
-                self.goal_rot = self.current_rot+np.pi*0.5
-                self.back_up = False
-            elif self.left_distance > 0.15:
-                self.goal_rot = self.current_rot-np.pi*0.5
-                self.back_up = False
-            else: self.back_up = True
+        #go to right x 
+        if abs(x_diffrence) > 0.06 and self.turns%2 == 0:
+            x_diffrence = x_diffrence if x_diffrence < 0.3 else 0.3
+            x_diffrence = x_diffrence if x_diffrence > -0.3 else -0.3
+            x = x_diffrence
+        else:
+            #first rotation
+            if self.turns%2 == 0 and self.turning_rounds == 0:
+                self.rot = -1.57
+                self.turning_rounds = 9
+            else:
+                #go to right y
+                if abs(y_diffrence) > 0.06:
+                    y_diffrence = y_diffrence if y_diffrence < 0.3 else 0.3
+                    y_diffrence = y_diffrence if y_diffrence > -0.3 else -0.3
+                    x = -y_diffrence
+                else:
+                    #second rotation
+                    if self.turning_rounds == 0:
+                        self.rot = 1.57
+                        self.turning_rounds = 9
 
-        if self.back_up: 
-            x = dis_back
-            self.back_up = False
-            rot = 0
-        elif self.goal_rot is not None and self.goal_rot!=self.current_rot:
-            rot = self.goal_rot - self.current_rot 
+        if self.prev_goal != self.goal:
+            if self.turns%2!=0 and self.turning_rounds == 0:
+                self.rot = 1.57
+                self.turning_rounds = 9
+            else:
+                self.prev_goal = self.goal
+
+        if self.turning_rounds > 0:
+            z = self.rot
             x = 0.0
-        elif self.goal_rot is not None and self.goal_rot==self.current_rot:
-            self.goal_rot = None
-            
-        x = min(max(x,-VEL_LIM),VEL_LIM)
-        rot = min(max(rot,-ROT_LIM),ROT_LIM)
-        self.current_rot += rot
-
+            self.turning_rounds -= 1
+            if self.turning_rounds == 0:
+                self.turns += 1
+        
         msg.linear.x = x
-        if rot!=0: msg.angular.z = rot
+        msg.angular.z = z
         self.publisher.publish(msg)
+
+
     
     def goal_cb(self, msg):
         goal = msg.pose.position.x, msg.pose.position.y
@@ -97,6 +107,7 @@ class VelocityController(Node):
     def position_cb(self, msg):
         if self.position is not None: self.prev_position = deepcopy(self.position)
         self.position = msg.point.x, msg.point.y
+
 
 
 def main(args=None):
