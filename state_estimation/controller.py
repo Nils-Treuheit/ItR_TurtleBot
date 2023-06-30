@@ -85,8 +85,10 @@ class VelocityController(Node):
             if self.turning_rounds == 0:
                 self.turns += 1
         
+        max_vel = float(min(max(self.forward_distance-0.3,0.0),VEL_LIM)) if x>=0.0 else float(max(-max(self.backward_distance-0.3,0.0),-VEL_LIM)) 
+        x = min(float(x),max_vel) if x>=0.0 else max(float(x),max_vel)
         msg.linear.x = x
-        msg.angular.z = z
+        msg.angular.z = max(min(float(z),ROT_LIM),-ROT_LIM) if x != 0.0 or z != 0.0 else ROT_LIM
         self.publisher.publish(msg)
 
 
