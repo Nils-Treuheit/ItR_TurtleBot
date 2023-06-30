@@ -7,9 +7,9 @@ from sensor_msgs.msg import LaserScan
 import math 
 
 # LIM in accordance to https://emanual.robotis.com/docs/en/platform/turtlebot3/features/
-ROT_LIM = 1.42 #50% of max speed
-VEL_LIM = 0.15 #75% of max speed
-DIST2FUT = 0.45 #tripple VEL_LIM
+ROT_LIM:float = 1.42 #50% of max speed
+VEL_LIM:float = 0.15 #75% of max speed
+DIST2FUT:float = 0.45 #tripple VEL_LIM
 
 
 class VelocityController(Node):
